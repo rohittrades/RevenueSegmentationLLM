@@ -45,10 +45,3 @@ jobs:
         with:
           name: segmentation-report
           path: llm_segmentation_output.ipynb
-
-      - name: Upload Logs and Temp Files
-        if: always()  # Runs even if the previous step failed
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-documents
-          path: data/tmp/documents/
