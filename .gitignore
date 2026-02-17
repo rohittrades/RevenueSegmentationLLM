@@ -1,0 +1,25 @@
+# --- Security / Credentials ---
+.env
+.env.local
+.env.shared
+*.json
+# If you have a specific name for your key file, list it explicitly:
+google_cloud_config.json
+
+# --- Python / Virtual Environments ---
+venv/
+env/
+ENV/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Jupyter Notebooks ---
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# --- OS / IDE Specific ---
+.DS_Store
+.vscode/
+.idea/
