@@ -1,0 +1,47 @@
+name: Revenue Segmentation LLM
+
+on:
+  # This allows you to run it manually from the "Actions" tab
+  workflow_dispatch:
+  # Optional: Keep this commented out if you don't want it to run on push
+  # push:
+  #   branches: [ main ]
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install papermill ipykernel pycryptodome
+          pip install -r requirements.txt
+          python -m ipykernel install --user --name python3 --display-name "Python 3"
+
+      - name: Execute Revenue Segmentation
+        env:
+          # Mapping your GitHub Secrets to Environment Variables
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          GEMINI_FREE_KEY: ${{ secrets.GEMINI_FREE_KEY }}
+          GEMINI_PAID_KEY1: ${{ secrets.GEMINI_PAID_KEY1 }}
+          LLM_MODEL_NAME: ${{ secrets.LLM_MODEL_NAME }}
+          GCP_BUCKET: ${{ secrets.GCP_BUCKET }}
+        run: |
+            papermill llm_segmentation.ipynb llm_segmentation_output.ipynb -k python3
+
+      - name: Save Resulting Notebook
+        if: always() # This ensures the output is saved even if the notebook fails mid-way
+        uses: actions/upload-artifact@v4
+        with:
+          name: segmentation-report
+          path: llm_segmentation_output.ipynb
