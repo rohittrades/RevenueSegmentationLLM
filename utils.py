@@ -88,3 +88,17 @@ def download_all_jsons(bucket_name, destination_folder):
 
 # # Usage:
 # download_all_jsons("super_trader_bucket1", "data/output/gendata_v2_test")
+
+def get_prompt(file_path):
+    """
+    Reads a prompt from a text file and returns it as a string.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            # .strip() removes leading/trailing whitespace/newlines
+            prompt = file.read().strip()
+            return prompt
+    except FileNotFoundError:
+        return "Error: The file was not found."
+    except Exception as e:
+        return f"An unexpected error occurred: {e}"
