@@ -1,0 +1,48 @@
+name: GICS Normalisation
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_rows:
+        description: 'Max rows to classify this run (0 = all pending)'
+        required: false
+        default: '0'
+
+jobs:
+  normalise:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # 6-hour hard cap (GitHub Actions limit)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # Cache the sentence-transformers model so it isn't re-downloaded every run
+      - name: Cache HuggingFace model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-all-MiniLM-L6-v2-v1
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install \
+            pandas pyarrow tqdm pydantic python-dotenv \
+            faiss-cpu sentence-transformers \
+            google-genai google-cloud-storage
+
+      - name: Run GICS normalisation
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          GEMINI_PAID_KEY1: ${{ secrets.GEMINI_PAID_KEY1 }}
+          LLM_MODEL_NAME: ${{ secrets.LLM_MODEL_NAME }}
+          GCP_BUCKET: ${{ secrets.GCP_BUCKET }}
+          MAX_ROWS: ${{ github.event.inputs.max_rows }}
+        run: python norm_segments.py

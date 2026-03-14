@@ -137,3 +137,17 @@ class VerticalDetail(BaseModel):
 class CompanyAnalysis(BaseModel):
     company_name: str = Field(..., description="Full legal name of the company being analyzed.")
     verticals: List[VerticalDetail] = Field(..., description="A list of consolidated business segments.")
+
+
+# Industry Classification (POST)
+class IndustryPrediction(BaseModel):
+    sub_industry_name: str = Field(..., description="The name of the GICS Sub-Industry selected.")
+    confidence_score: float = Field(..., ge=0, le=1.0)
+    reasoning: str = Field(..., max_length=250, description="Very short justification under 40 words.")
+
+class GICSResponse(BaseModel):
+    predictions: List[IndustryPrediction] = Field(
+        ...,
+        max_length=3,
+        description="Top 3 predicted sub-industries sorted by confidence descending"
+    )
