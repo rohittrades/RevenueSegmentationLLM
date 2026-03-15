@@ -1,20 +1,35 @@
 # RevenueSegmentationLLM
-1. Using LLM to segment listed businesses using publicly available documents (llm_segmentation.py)
-2. Download segments from GCP (download_segments.py)
-3. Pre-process the segments data into a pandas df and add other required columns (outputs a csv and parquet output)
-4. normalise the revenue segments using workflow (norm_segments.py)
-5. post-process to get final dataframe
 
+LLM-based pipeline to extract and classify revenue segments of listed Indian businesses using publicly available filings (Annual Reports, Quarterly PPTs, Concall Transcripts).
 
-output from prepare_for_discovery.ipynb
-No 1
--> data/output/dis_baselist_v1.csv 
--> base list of stocks that can be searched on tool 
--> contains all stock > 400 cr mcap with meta data (mcap , industry, screener link, etc)
+## Pipeline
 
-No 2
--> some post processign of norm segments into a single list
+1. **`llm_segmentation.py`** — Downloads PDFs from URLs, uploads to Gemini, extracts structured revenue segment data per company. Saves JSONs to GCP bucket.
+2. **`download_segments.py`** — Downloads all extracted JSONs from GCP locally.
+3. **`preprocess_segments.py`** — Converts JSONs into a pandas DataFrame. Computes `effective_revenue`, `revenue_pct`, and YoY changes. Outputs `.parquet` and `.csv`.
+4. **`norm_segments.py`** — Classifies each revenue segment into GICS sub-industries using FAISS semantic search + Gemini. Saves progress checkpoints every 50 rows.
+5. **`clean_parquet.py`** — Detects and removes misattributed segments (LLM cross-contamination) using word-overlap matching.
+6. **`prepare_for_discovery.ipynb`** — Final post-processing. Filters low-confidence GICS predictions (<0.45), consolidates predictions into list columns, generates screener links.
 
-output of clean_parquet.py
+## Outputs
 
--> coreects mistakes of llm segmentation
+| File | Description |
+|------|-------------|
+| `dis_baselist_v1.csv` | Base list of stocks >400cr mcap with metadata (mcap, industry, screener link) |
+| `dis_rev_segment_clean.parquet` | Cleaned revenue segments with GICS classifications |
+
+## Configuration
+
+Key settings at the top of `llm_segmentation.py`:
+- `demo_run` — set `True` to test on a single random stock
+- `local_run` — set `True` to save output locally instead of GCP
+- `MAX_COUNT` — max stocks to process per run (default 200)
+
+Required env vars (`.env`):
+```
+GEMINI_PAID_KEY1=
+GEMINI_FREE_KEY=
+LLM_MODEL_NAME=
+GCP_BUCKET=
+GCP_CREDENTIALS=
+```
