@@ -5,7 +5,7 @@ from utils import download_all_jsons
 load_dotenv()
 
 bucket_name = os.getenv("GCP_BUCKET")
-destination_folder = "data/output/segments/v1"
+destination_folder = "data/output/llm_segments_jsons/v1"
 
 if __name__ == "__main__":
 

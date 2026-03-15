@@ -249,16 +249,26 @@ def main_task():
         files = {k: row[k] for k in url_cols if k in row and row[k] is not None}
 
         if not files:
-            print("⛔️ No URLs available - SKIPPING !!! ⛔️")
+            print("⛔️ No URLs available - counting as failure ⛔️")
+            counter -= 1
+            failed.append(row['company_name'])
             continue
         #download files - AR or DRHP / latest Q ppt / latest Q concall
         file_references = downl_upl_files(files, dl_path, client)
+
+        if not file_references:
+            print("⛔️ All downloads failed - no attachments to process ⛔️")
+            counter -= 1
+            failed.append(row['company_name'])
+            if dl_path.exists() and dl_path.is_dir():
+                shutil.rmtree(dl_path)
+            continue
 
         # Wait for everything in the list
         wait_for_files_active(client, file_references)
 
         sys_prompt = SYSTEM_PROMPT.format(company_name=row['company_name'])
-        file_references.append(SYSTEM_PROMPT)
+        file_references.append(sys_prompt)
 
         try:
             # Get the pre-flight token count

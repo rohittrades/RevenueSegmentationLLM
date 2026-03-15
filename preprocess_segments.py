@@ -4,7 +4,7 @@ from pathlib import Path
 from utils import GICSAutomator
 
 JSONS_DIR = Path('data/output/segments/v1')
-OUTPUT_DIR = Path('data/output')
+OUTPUT_DIR = Path('data/output/preprocess_segments')
 
 
 def load_df(jsons_dir: Path) -> pd.DataFrame:
