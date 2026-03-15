@@ -210,13 +210,28 @@ class GICSAutomator:
         except Exception as e:
             raise RuntimeError(f"Error reading prompt file {file_path}: {e}") from e
 
-    def llm(self, prompt, dynamic_schema, retries: int = 3, backoff: float = 5.0):
-        """Calls Gemini with structured JSON output and retries on transient failures.
+    def llm(self, prompt, dynamic_schema, retries: int = 3):
+        """Calls Gemini with structured JSON output and smart retry logic.
 
-        Retries up to `retries` times with `backoff` seconds between attempts.
-        Returns an error dict only after all retries are exhausted.
+        Error handling strategy:
+        - ValidationError       → return error dict immediately (schema mismatch, retrying won't help)
+        - Rate limit (429)      → retry with long backoff: 60s, 120s, 180s
+        - Quota / billing fatal → raise immediately so the caller can abort the whole run
+        - Other transient error → retry with short backoff: 5s, 10s, 15s
         """
         import time
+
+        # Signals that the API key / project is out of credits — retrying is pointless
+        _FATAL_SIGNALS = (
+            'billing', 'payment', 'out of credit', 'quota exceeded',
+            'monthly limit', 'daily limit', 'project quota',
+        )
+        # Signals for per-minute / per-day rate limits — retry after a long wait
+        _RATE_LIMIT_SIGNALS = (
+            '429', 'resource_exhausted', 'rate limit', 'too many requests',
+            'quota_exceeded',
+        )
+
         last_error = None
         for attempt in range(1, retries + 1):
             try:
@@ -229,13 +244,28 @@ class GICSAutomator:
                     }
                 )
                 return dynamic_schema.model_validate_json(response.text)
+
             except ValidationError as e:
                 # Schema mismatch — retrying won't help
                 return {"error": "Validation failed", "details": e.errors()}
+
             except Exception as e:
                 last_error = e
+                err_lower = str(e).lower()
+
+                # Hard stop — quota / billing exhausted; bubble up to abort the run
+                if any(sig in err_lower for sig in _FATAL_SIGNALS):
+                    print(f"\n[FATAL] Quota/billing error detected: {e}")
+                    raise
+
                 if attempt < retries:
-                    time.sleep(backoff * attempt)   # 5s, 10s, 15s
+                    if any(sig in err_lower for sig in _RATE_LIMIT_SIGNALS):
+                        wait = 60 * attempt   # 60s, 120s, 180s for rate limits
+                        print(f"  Rate limit hit — waiting {wait}s before retry {attempt+1}/{retries}")
+                    else:
+                        wait = 5 * attempt    # 5s, 10s, 15s for other transient errors
+                    time.sleep(wait)
+
         return {"error": str(last_error)}
 
 

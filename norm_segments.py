@@ -14,6 +14,9 @@ GCS_PARQUET_BLOB = 'data/revenue_segments.parquet'
 # Optional cap on rows processed per run (set MAX_ROWS env var; 0 = no limit)
 MAX_ROWS = int(os.getenv('MAX_ROWS', '0'))
 
+# Circuit breaker: abort if this many consecutive rows all fail (signals quota exhaustion)
+CONSECUTIVE_FAIL_LIMIT = 5
+
 # Flat column names written per row
 GICS_COLS = (
     ['gics_pred_1', 'gics_conf_1',
@@ -87,15 +90,40 @@ def main():
     done = len(df) - df['gics_pred_1'].isna().sum()
     print(f'Total: {len(df)} rows | Already done: {done} | Pending this run: {len(pending_idx)}')
 
+    consecutive_fails = 0
+
     for count, idx in enumerate(tqdm(pending_idx, desc='Classifying segments'), 1):
         row = df.loc[idx]
-        result = gics_automator.categorize_project(
-            row['company_name'],
-            row['business_segment'],
-            row['segment_summary'],
-            row['products_or_services']
-        )
-        for col, val in flatten_result(result).items():
+        try:
+            result = gics_automator.categorize_project(
+                row['company_name'],
+                row['business_segment'],
+                row['segment_summary'],
+                row['products_or_services']
+            )
+        except Exception as e:
+            # Fatal error raised by llm() (quota/billing exhausted) — save and abort
+            print(f'\n[FATAL] API error, saving progress and aborting: {e}')
+            df.to_parquet(PARQUET_PATH, index=False)
+            sync_to_gcs(f'abort after {count-1} rows — fatal API error')
+            raise SystemExit(1)
+
+        flat = flatten_result(result)
+
+        # Circuit breaker: count consecutive soft failures (all-None results)
+        if isinstance(result, dict):
+            consecutive_fails += 1
+            print(f'  Row {idx} failed ({consecutive_fails}/{CONSECUTIVE_FAIL_LIMIT} consecutive)')
+            if consecutive_fails >= CONSECUTIVE_FAIL_LIMIT:
+                print(f'\n[ABORT] {CONSECUTIVE_FAIL_LIMIT} consecutive failures — '
+                      'likely quota exhausted. Saving progress.')
+                df.to_parquet(PARQUET_PATH, index=False)
+                sync_to_gcs(f'abort after {count} rows — circuit breaker')
+                raise SystemExit(1)
+        else:
+            consecutive_fails = 0  # reset on any success
+
+        for col, val in flat.items():
             df.at[idx, col] = val
 
         if count % CHECKPOINT_EVERY == 0:
